@@ -65,6 +65,7 @@ type Session struct {
 
 	breakingPos cube.Pos
 
+	openedVirtualContainer         atomic.Bool
 	inTransaction, containerOpened atomic.Bool
 	openedWindowID                 atomic.Uint32
 	openedContainerID              atomic.Uint32

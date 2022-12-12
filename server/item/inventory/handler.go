@@ -15,6 +15,8 @@ type Handler interface {
 	HandlePlace(ctx *event.Context, slot int, it item.Stack)
 	// HandleDrop handles the dropping of an item.Stack in a slot out of the inventory.
 	HandleDrop(ctx *event.Context, slot int, it item.Stack)
+
+	HandleClose(ctx *event.Context)
 }
 
 // Check to make sure NopHandler implements Handler.
@@ -27,3 +29,4 @@ type NopHandler struct{}
 func (NopHandler) HandleTake(*event.Context, int, item.Stack)  {}
 func (NopHandler) HandlePlace(*event.Context, int, item.Stack) {}
 func (NopHandler) HandleDrop(*event.Context, int, item.Stack)  {}
+func (NopHandler) HandleClose(*event.Context)                  {}

@@ -869,6 +869,39 @@ func (s *Session) ViewEntityState(e world.Entity) {
 	})
 }
 
+//OpenVirtualContainer ...
+func (s *Session) OpenVirtualContainer(b block.Chest, pos cube.Pos) {
+	if s.containerOpened.Load() && s.openedPos.Load() == pos {
+		return
+	}
+	s.closeCurrentContainer()
+	nextID := s.nextWindowID()
+	s.containerOpened.Store(true)
+	s.openedVirtualContainer.Store(true)
+	s.openedWindow.Store(b.Inventory())
+	s.openedPos.Store(pos)
+	s.writePacket(&packet.UpdateBlock{
+		Position:          protocol.BlockPos{int32(pos[0]), int32(pos[1]), int32(pos[2])},
+		NewBlockRuntimeID: world.BlockRuntimeID(b),
+		Flags:             0,
+		Layer:             0,
+	})
+	s.writePacket(&packet.BlockActorData{
+		Position: protocol.BlockPos{
+			int32(pos.X()),
+			int32(pos.Y()),
+			int32(pos.Z()),
+		},
+		NBTData: b.EncodeNBT(),
+	})
+	s.writePacket(&packet.ContainerOpen{
+		WindowID:                nextID,
+		ContainerType:           0,
+		ContainerPosition:       protocol.BlockPos{int32(pos[0]), int32(pos[1]), int32(pos[2])},
+		ContainerEntityUniqueID: -1,
+	})
+}
+
 // OpenBlockContainer ...
 func (s *Session) OpenBlockContainer(pos cube.Pos) {
 	if s.containerOpened.Load() && s.openedPos.Load() == pos {

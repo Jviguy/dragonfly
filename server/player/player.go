@@ -2216,6 +2216,12 @@ func (p *Player) OpenBlockContainer(pos cube.Pos) {
 	}
 }
 
+func (p *Player) OpenVirtualContainer(c block.Chest, pos cube.Pos) {
+	if p.session() != session.Nop {
+		p.session().OpenVirtualContainer(c, pos)
+	}
+}
+
 // HideEntity hides a world.Entity from the Player so that it can under no circumstance see it. Hidden entities can be
 // made visible again through a call to ShowEntity.
 func (p *Player) HideEntity(e world.Entity) {

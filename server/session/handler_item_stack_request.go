@@ -331,7 +331,6 @@ func (h *ItemStackRequestHandler) verifySlot(slot protocol.StackRequestSlotInfo,
 		return fmt.Errorf("too many unacknowledged request slot changes")
 	}
 	inv, _ := s.invByID(int32(slot.ContainerID))
-
 	i, err := h.itemInSlot(slot, s)
 	if err != nil {
 		return err

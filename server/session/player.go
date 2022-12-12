@@ -7,6 +7,7 @@ import (
 	"github.com/df-mc/dragonfly/server/block"
 	"github.com/df-mc/dragonfly/server/entity"
 	"github.com/df-mc/dragonfly/server/entity/effect"
+	"github.com/df-mc/dragonfly/server/event"
 	"github.com/df-mc/dragonfly/server/internal/nbtconv"
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/creative"
@@ -50,9 +51,22 @@ func (s *Session) closeCurrentContainer() {
 	if !s.containerOpened.Load() {
 		return
 	}
+	ctx := event.C()
+	s.openedWindow.Load().Handler().HandleClose(ctx)
+	if ctx.Cancelled() {
+		return
+	}
 	s.closeWindow()
-
 	pos := s.openedPos.Load()
+	if s.openedVirtualContainer.Load() {
+		s.writePacket(&packet.UpdateBlock{
+			Position:          protocol.BlockPos{int32(pos[0]), int32(pos[1]), int32(pos[2])},
+			NewBlockRuntimeID: world.BlockRuntimeID(block.Air{}),
+			Flags:             0,
+			Layer:             0,
+		})
+		return
+	}
 	w := s.c.World()
 	b := w.Block(pos)
 	if container, ok := b.(block.Container); ok {
@@ -178,6 +192,9 @@ func (s *Session) invByID(id int32) (*inventory.Inventory, bool) {
 		// Armour inventory.
 		return s.armour.Inventory(), true
 	case containerChest:
+		if s.openedVirtualContainer.Load() {
+			return s.openedWindow.Load(), true
+		}
 		if s.containerOpened.Load() {
 			b := s.c.World().Block(s.openedPos.Load())
 			if _, chest := b.(block.Chest); chest {

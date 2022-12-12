@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/internal/nbtconv"
+	"github.com/df-mc/dragonfly/server/internal/sliceutil"
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/inventory"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/sound"
 	"github.com/go-gl/mathgl/mgl64"
+	"golang.org/x/exp/slices"
 	"strings"
 	"sync"
 	"time"
@@ -29,20 +31,23 @@ type Chest struct {
 	// include colour codes.
 	CustomName string
 
+	paired  bool
+	pairPos cube.Pos
+
 	inventory *inventory.Inventory
 	viewerMu  *sync.RWMutex
-	viewers   map[ContainerViewer]struct{}
+	viewers   *[]ContainerViewer
 }
 
 // NewChest creates a new initialised chest. The inventory is properly initialised.
 func NewChest() Chest {
 	m := new(sync.RWMutex)
-	v := make(map[ContainerViewer]struct{}, 1)
+	v := new([]ContainerViewer)
 	return Chest{
 		inventory: inventory.New(27, func(slot int, _, item item.Stack) {
 			m.RLock()
 			defer m.RUnlock()
-			for viewer := range v {
+			for _, viewer := range *v {
 				viewer.ViewSlotChange(slot, item)
 			}
 		}),
@@ -88,10 +93,11 @@ func (c Chest) close(w *world.World, pos cube.Pos) {
 func (c Chest) AddViewer(v ContainerViewer, w *world.World, pos cube.Pos) {
 	c.viewerMu.Lock()
 	defer c.viewerMu.Unlock()
-	if len(c.viewers) == 0 {
+	viewing := len(*c.viewers)
+	*c.viewers = append(*c.viewers, v)
+	if viewing == 0 {
 		c.open(w, pos)
 	}
-	c.viewers[v] = struct{}{}
 }
 
 // RemoveViewer removes a viewer from the chest, so that slot updates in the inventory are no longer sent to
@@ -99,11 +105,12 @@ func (c Chest) AddViewer(v ContainerViewer, w *world.World, pos cube.Pos) {
 func (c Chest) RemoveViewer(v ContainerViewer, w *world.World, pos cube.Pos) {
 	c.viewerMu.Lock()
 	defer c.viewerMu.Unlock()
-	if len(c.viewers) == 0 {
+	i := sliceutil.Index(*c.viewers, v)
+	if i == -1 {
 		return
 	}
-	delete(c.viewers, v)
-	if len(c.viewers) == 0 {
+	*c.viewers = slices.Delete(*c.viewers, i, i+1)
+	if len(*c.viewers) == 0 {
 		c.close(w, pos)
 	}
 }
@@ -174,7 +181,39 @@ func (c Chest) EncodeNBT() map[string]any {
 	if c.CustomName != "" {
 		m["CustomName"] = c.CustomName
 	}
+	if c.paired {
+		m["pairx"] = int32(c.pairPos[0])
+		m["pairz"] = int32(c.pairPos[2])
+	}
 	return m
+}
+
+// Pair pairs this chest with the given chest position.
+func (c Chest) Pair(pos, pairPos cube.Pos) (ch, pair Chest, ok bool) {
+	c.pairPos, c.paired = pairPos, true
+	m := new(sync.RWMutex)
+	v := new([]ContainerViewer)
+	c.viewerMu, pair.viewerMu = m, m
+	c.viewers, pair.viewers = v, v
+	double := inventory.New(54, func(slot int, _, item item.Stack) {
+		m.RLock()
+		defer m.RUnlock()
+		for _, viewer := range *v {
+			viewer.ViewSlotChange(slot, item)
+		}
+	})
+	for i, it := range c.Inventory().Slots() {
+		_ = double.SetItem(i, it)
+	}
+
+	c.inventory, pair.inventory = double, double
+	return c, pair, true
+}
+
+// Unpair ...
+// TODO: Proper unpairing logic.
+func (c Chest) Unpair() (ch, pair Chest, ok bool) {
+	return Chest{}, Chest{}, false
 }
 
 // EncodeItem ...
