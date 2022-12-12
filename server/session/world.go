@@ -870,7 +870,7 @@ func (s *Session) ViewEntityState(e world.Entity) {
 }
 
 //OpenVirtualContainer ...
-func (s *Session) OpenVirtualContainer(b block.Chest, pos cube.Pos) {
+func (s *Session) OpenVirtualContainer(b block.Container, pos cube.Pos) {
 	if s.containerOpened.Load() && s.openedPos.Load() == pos {
 		return
 	}
@@ -882,7 +882,7 @@ func (s *Session) OpenVirtualContainer(b block.Chest, pos cube.Pos) {
 	s.openedPos.Store(pos)
 	s.writePacket(&packet.UpdateBlock{
 		Position:          protocol.BlockPos{int32(pos[0]), int32(pos[1]), int32(pos[2])},
-		NewBlockRuntimeID: world.BlockRuntimeID(b),
+		NewBlockRuntimeID: world.BlockRuntimeID(b.(world.Block)),
 		Flags:             0,
 		Layer:             0,
 	})
@@ -892,7 +892,7 @@ func (s *Session) OpenVirtualContainer(b block.Chest, pos cube.Pos) {
 			int32(pos.Y()),
 			int32(pos.Z()),
 		},
-		NBTData: b.EncodeNBT(),
+		NBTData: b.(world.NBTer).EncodeNBT(),
 	})
 	s.writePacket(&packet.ContainerOpen{
 		WindowID:                nextID,

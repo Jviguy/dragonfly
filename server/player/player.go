@@ -2216,7 +2216,7 @@ func (p *Player) OpenBlockContainer(pos cube.Pos) {
 	}
 }
 
-func (p *Player) OpenVirtualContainer(c block.Chest, pos cube.Pos) {
+func (p *Player) OpenVirtualContainer(c block.Container, pos cube.Pos) {
 	if p.session() != session.Nop {
 		p.session().OpenVirtualContainer(c, pos)
 	}
