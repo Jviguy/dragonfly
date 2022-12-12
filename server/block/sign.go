@@ -64,7 +64,7 @@ func (s Sign) EncodeItem() (name string, meta int16) {
 
 // BreakInfo ...
 func (s Sign) BreakInfo() BreakInfo {
-	return newBreakInfo(1, alwaysHarvestable, axeEffective, oneOf(s))
+	return newBreakInfo(1, alwaysHarvestable, axeEffective, oneOf(Sign{Wood: s.Wood}))
 }
 
 // Dye dyes the Sign, changing its base colour to that of the colour passed.
@@ -123,14 +123,14 @@ func (s Sign) NeighbourUpdateTick(pos, _ cube.Pos, w *world.World) {
 		if _, ok := w.Block(pos.Side(s.Attach.facing.Opposite().Face())).(Air); ok {
 			w.SetBlock(pos, nil, nil)
 			w.AddParticle(pos.Vec3Centre(), particle.BlockBreak{Block: s})
-			dropItem(w, item.NewStack(s, 1), pos.Vec3Centre())
+			dropItem(w, item.NewStack(Sign{Wood: s.Wood}, 1), pos.Vec3Centre())
 		}
 		return
 	}
 	if _, ok := w.Block(pos.Side(cube.FaceDown)).(Air); ok {
 		w.SetBlock(pos, nil, nil)
 		w.AddParticle(pos.Vec3Centre(), particle.BlockBreak{Block: s})
-		dropItem(w, item.NewStack(s, 1), pos.Vec3Centre())
+		dropItem(w, item.NewStack(Sign{Wood: s.Wood}, 1), pos.Vec3Centre())
 	}
 }
 
