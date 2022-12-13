@@ -869,6 +869,17 @@ func (s *Session) ViewEntityState(e world.Entity) {
 	})
 }
 
+func (s *Session) SyncOpenContainer() {
+	x := make([]protocol.ItemInstance, 0)
+	for _, i := range s.openedWindow.Load().Items() {
+		x = append(x, instanceFromItem(i))
+	}
+	s.writePacket(&packet.InventoryContent{
+		WindowID: s.openedWindowID.Load(),
+		Content:  x,
+	})
+}
+
 //OpenVirtualContainer ...
 func (s *Session) OpenVirtualContainer(b block.Container, pos cube.Pos) {
 	if s.containerOpened.Load() && s.openedPos.Load() == pos {
