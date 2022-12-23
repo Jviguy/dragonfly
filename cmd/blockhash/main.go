@@ -19,7 +19,6 @@ import (
 func main() {
 	out := flag.String("o", "", "output file for hash constants and methods")
 	flag.Parse()
-
 	if len(flag.Args()) != 1 {
 		log.Fatalln("Must pass one package to produce block hashes for.")
 	}

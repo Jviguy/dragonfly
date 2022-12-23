@@ -130,6 +130,9 @@ const (
 	hashRawCopper
 	hashRawGold
 	hashRawIron
+	hashRedstoneBlock
+	hashRedstoneDust
+	hashRedstoneOre
 	hashReinforcedDeepslate
 	hashSand
 	hashSandstone
@@ -676,6 +679,18 @@ func (RawGold) Hash() uint64 {
 
 func (RawIron) Hash() uint64 {
 	return hashRawIron
+}
+
+func (RedstoneBlock) Hash() uint64 {
+	return hashRedstoneBlock
+}
+
+func (r RedstoneDust) Hash() uint64 {
+	return hashRedstoneDust | uint64(r.Power)<<8
+}
+
+func (r RedstoneOre) Hash() uint64 {
+	return hashRedstoneOre | uint64(r.Type.Uint8())<<8
 }
 
 func (ReinforcedDeepslate) Hash() uint64 {

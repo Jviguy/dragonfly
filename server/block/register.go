@@ -110,6 +110,7 @@ func init() {
 		world.RegisterBlock(GoldOre{Type: ore})
 		world.RegisterBlock(IronOre{Type: ore})
 		world.RegisterBlock(LapisOre{Type: ore})
+		world.RegisterBlock(RedstoneOre{Type: ore})
 	}
 
 	registerAll(allAnvils())
