@@ -101,6 +101,8 @@ func init() {
 	world.RegisterBlock(TNT{})
 	world.RegisterBlock(Terracotta{})
 	world.RegisterBlock(Tuff{})
+	world.RegisterBlock(RedstoneBlock{})
+	world.RegisterBlock(RedstoneDust{})
 
 	for _, ore := range OreTypes() {
 		world.RegisterBlock(CoalOre{Type: ore})
