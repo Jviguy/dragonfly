@@ -56,6 +56,22 @@ func NewChest() Chest {
 	}
 }
 
+func NewDoubleChest() Chest {
+	m := new(sync.RWMutex)
+	v := new([]ContainerViewer)
+	return Chest{
+		inventory: inventory.New(54, func(slot int, _, item item.Stack) {
+			m.RLock()
+			defer m.RUnlock()
+			for _, viewer := range *v {
+				viewer.ViewSlotChange(slot, item)
+			}
+		}),
+		viewerMu: m,
+		viewers:  v,
+	}
+}
+
 // Inventory returns the inventory of the chest. The size of the inventory will be 27 or 54, depending on
 // whether the chest is single or double.
 func (c Chest) Inventory() *inventory.Inventory {
