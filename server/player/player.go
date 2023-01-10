@@ -192,6 +192,33 @@ func (p *Player) XUID() string {
 	return p.xuid
 }
 
+// DeviceID returns the device ID of the player. If the Player is not connected to a network session, an empty string is
+// returned. Otherwise, the device ID the network session sent in the ClientData is returned.
+func (p *Player) DeviceID() string {
+	if p.session() == session.Nop {
+		return ""
+	}
+	return p.session().ClientData().DeviceID
+}
+
+// DeviceModel returns the device model of the player. If the Player is not connected to a network session, an empty
+// string is returned. Otherwise, the device model the network session sent in the ClientData is returned.
+func (p *Player) DeviceModel() string {
+	if p.session() == session.Nop {
+		return ""
+	}
+	return p.session().ClientData().DeviceModel
+}
+
+// SelfSignedID returns the self-signed ID of the player. If the Player is not connected to a network session, an empty
+// string is returned. Otherwise, the self-signed ID the network session sent in the ClientData is returned.
+func (p *Player) SelfSignedID() string {
+	if p.session() == session.Nop {
+		return ""
+	}
+	return p.session().ClientData().SelfSignedID
+}
+
 // Addr returns the net.Addr of the Player. If the Player is not connected to a network session, nil is returned.
 func (p *Player) Addr() net.Addr {
 	if p.session() == session.Nop {
@@ -578,9 +605,8 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 
 	if a := p.Absorption(); a > 0 {
 		if damageLeft > a {
-			damageLeft -= a
 			p.SetAbsorption(0)
-			p.effects.Remove(effect.Absorption{}, p)
+			damageLeft -= a
 		} else {
 			p.SetAbsorption(a - damageLeft)
 			damageLeft = 0
@@ -843,7 +869,7 @@ func (p *Player) Exhaust(points float64) {
 		p.hunger.SetFood(before)
 
 		ctx := event.C()
-		if p.Handler().HandleFoodLoss(ctx, before, after); ctx.Cancelled() {
+		if p.Handler().HandleFoodLoss(ctx, before, &after); ctx.Cancelled() {
 			return
 		}
 		p.hunger.SetFood(after)
@@ -1246,6 +1272,9 @@ func (p *Player) EnderChestInventory() *inventory.Inventory {
 func (p *Player) SetGameMode(mode world.GameMode) {
 	previous := p.gameMode.Swap(mode)
 	p.session().SendGameMode(mode)
+	for _, v := range p.viewers() {
+		v.ViewEntityGameMode(p)
+	}
 
 	if !mode.AllowsFlying() {
 		p.StopFlying()
@@ -1790,16 +1819,13 @@ func (p *Player) obstructedPos(pos cube.Pos, b world.Block) bool {
 
 	around := w.EntitiesWithin(cube.Box(-3, -3, -3, 3, 3, 3).Translate(pos.Vec3()), nil)
 	for _, e := range around {
-		if _, ok := e.(*entity.Item); ok {
-			// Placing blocks inside item entities is fine.
+		switch e.Type().(type) {
+		case entity.ItemType, entity.ArrowType:
 			continue
-		}
-		if _, ok := e.(*entity.Arrow); ok {
-			// Placing blocks inside arrow entities is fine.
-			continue
-		}
-		if cube.AnyIntersections(blockBoxes, e.Type().BBox(e).Translate(e.Position()).Grow(-1e-6)) {
-			return true
+		default:
+			if cube.AnyIntersections(blockBoxes, e.Type().BBox(e).Translate(e.Position()).Grow(-1e-6)) {
+				return true
+			}
 		}
 	}
 	return false
@@ -1825,8 +1851,13 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 	held, _ := p.HeldItems()
 	drops := p.drops(held, b)
 
+	xp := 0
+	if breakable, ok := b.(block.Breakable); ok && !p.GameMode().CreativeInventory() {
+		xp = breakable.BreakInfo().XPDrops.RandomValue()
+	}
+
 	ctx := event.C()
-	if p.Handler().HandleBlockBreak(ctx, pos, &drops); ctx.Cancelled() {
+	if p.Handler().HandleBlockBreak(ctx, pos, &drops, &xp); ctx.Cancelled() {
 		p.resendBlocks(pos, w)
 		return
 	}
@@ -1841,12 +1872,9 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 		if info.BreakHandler != nil {
 			info.BreakHandler(pos, w, p)
 		}
-		if diff := (info.XPDrops[1] - info.XPDrops[0]) + 1; diff > 0 && !p.GameMode().CreativeInventory() {
-			amount := rand.Intn(diff) + info.XPDrops[0]
-			for _, orb := range entity.NewExperienceOrbs(pos.Vec3Centre(), amount) {
-				orb.SetVelocity(mgl64.Vec3{(rand.Float64()*0.2 - 0.1) * 2, rand.Float64() * 0.4, (rand.Float64()*0.2 - 0.1) * 2})
-				w.AddEntity(orb)
-			}
+		for _, orb := range entity.NewExperienceOrbs(pos.Vec3Centre(), xp) {
+			orb.SetVelocity(mgl64.Vec3{(rand.Float64()*0.2 - 0.1) * 2, rand.Float64() * 0.4, (rand.Float64()*0.2 - 0.1) * 2})
+			w.AddEntity(orb)
 		}
 	}
 	for _, drop := range drops {
@@ -1877,7 +1905,7 @@ func (p *Player) drops(held item.Stack, b world.Block) []item.Stack {
 		drops = container.Inventory().Items()
 		if breakable, ok := b.(block.Breakable); ok && !p.GameMode().CreativeInventory() {
 			if breakable.BreakInfo().Harvestable(t) {
-				drops = breakable.BreakInfo().Drops(t, held.Enchantments())
+				drops = append(drops, breakable.BreakInfo().Drops(t, held.Enchantments())...)
 			}
 		}
 		container.Inventory().Clear()
@@ -2290,7 +2318,7 @@ func (p *Player) Tick(w *world.World, current int64) {
 	if _, ok := w.Liquid(cube.PosFromVec3(p.Position())); !ok {
 		p.StopSwimming()
 		if _, ok := p.Armour().Helmet().Item().(item.TurtleShell); ok {
-			p.AddEffect(effect.New(effect.WaterBreathing{}, 1, time.Second*10))
+			p.AddEffect(effect.New(effect.WaterBreathing{}, 1, time.Second*10).WithoutParticles())
 		}
 	}
 
@@ -2387,29 +2415,40 @@ func (p *Player) tickAirSupply(w *world.World) {
 // is full enough.
 func (p *Player) tickFood(w *world.World) {
 	p.hunger.foodTick++
-	if p.hunger.foodTick == 10 && (p.hunger.canQuicklyRegenerate() || w.Difficulty().FoodRegenerates()) {
+	if p.hunger.foodTick >= 80 {
 		p.hunger.foodTick = 0
-		p.regenerate()
+	}
+
+	if p.hunger.foodTick%10 == 0 && (p.hunger.canQuicklyRegenerate() || w.Difficulty().FoodRegenerates()) {
 		if w.Difficulty().FoodRegenerates() {
 			p.AddFood(1)
 		}
-	} else if p.hunger.foodTick == 80 {
-		p.hunger.foodTick = 0
+		if p.hunger.foodTick%20 == 0 {
+			p.regenerate(false)
+		}
+	}
+	if p.hunger.foodTick == 0 {
 		if p.hunger.canRegenerate() {
-			p.regenerate()
+			p.regenerate(true)
 		} else if p.hunger.starving() {
 			p.starve(w)
 		}
 	}
+
+	if !p.hunger.canSprint() {
+		p.StopSprinting()
+	}
 }
 
 // regenerate attempts to regenerate half a heart of health, typically caused by a full food bar.
-func (p *Player) regenerate() {
+func (p *Player) regenerate(exhaust bool) {
 	if p.Health() == p.MaxHealth() {
 		return
 	}
 	p.Heal(1, entity.FoodHealingSource{})
-	p.Exhaust(6)
+	if exhaust {
+		p.Exhaust(6)
+	}
 }
 
 // starve deals starvation damage to the player if the difficult allows it. In peaceful mode, no damage will
@@ -2816,6 +2855,9 @@ func (p *Player) load(data Data) {
 	p.health.AddHealth(data.Health - p.Health())
 	p.session().SendHealth(p.health)
 
+	p.absorptionHealth.Store(data.AbsorptionLevel)
+	p.session().SendAbsorption(p.absorptionHealth.Load())
+
 	p.hunger.SetFood(data.Hunger)
 	p.hunger.foodTick = data.FoodTick
 	p.hunger.exhaustionLevel, p.hunger.saturationLevel = data.ExhaustionLevel, data.SaturationLevel
@@ -2877,6 +2919,7 @@ func (p *Player) Data() Data {
 		MaxAirSupply:    p.maxAirSupplyTicks.Load(),
 		ExhaustionLevel: p.hunger.exhaustionLevel,
 		SaturationLevel: p.hunger.saturationLevel,
+		AbsorptionLevel: p.Absorption(),
 		GameMode:        p.GameMode(),
 		Inventory: InventoryData{
 			Items:        p.Inventory().Slots(),
@@ -2891,7 +2934,7 @@ func (p *Player) Data() Data {
 		Effects:             p.Effects(),
 		FireTicks:           p.fireTicks.Load(),
 		FallDistance:        p.fallDistance.Load(),
-		Dimension:           p.World().Dimension().EncodeDimension(),
+		World:               p.World(),
 	}
 }
 
