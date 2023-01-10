@@ -179,6 +179,9 @@ func (c Chest) DecodeNBT(data map[string]any) any {
 	c.Facing = facing
 	c.CustomName = nbtconv.String(data, "CustomName")
 	nbtconv.InvFromNBT(c.inventory, nbtconv.Slice(data, "Items"))
+	x := nbtconv.Int32(data, "pairx")
+	z := nbtconv.Int32(data, "pairz")
+	c.pairPos = cube.Pos{int(x), 0, int(z)}
 	return c
 }
 
