@@ -148,9 +148,6 @@ type smelter interface {
 // invByID attempts to return an inventory by the ID passed. If found, the inventory is returned and the bool
 // returned is true.
 func (s *Session) invByID(id int32) (*inventory.Inventory, bool) {
-	if s.openedVirtualContainer.Load() {
-		return s.openedWindow.Load(), true
-	}
 	switch id {
 	case protocol.ContainerCraftingInput, protocol.ContainerCreatedOutput, protocol.ContainerCursor:
 		// UI inventory.
@@ -164,6 +161,9 @@ func (s *Session) invByID(id int32) (*inventory.Inventory, bool) {
 		// Armour inventory.
 		return s.armour.Inventory(), true
 	case protocol.ContainerLevelEntity:
+		if s.openedVirtualContainer.Load() {
+			return s.openedWindow.Load(), true
+		}
 		if s.containerOpened.Load() {
 			b := s.c.World().Block(s.openedPos.Load())
 			if _, chest := b.(block.Chest); chest {

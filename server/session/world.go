@@ -930,7 +930,7 @@ func (s *Session) OpenVirtualContainer(b block.Container, pos cube.Pos) {
 	})
 	s.writePacket(&packet.ContainerOpen{
 		WindowID:                nextID,
-		ContainerType:           0,
+		ContainerType:           protocol.ContainerTypeContainer,
 		ContainerPosition:       protocol.BlockPos{int32(pos[0]), int32(pos[1]), int32(pos[2])},
 		ContainerEntityUniqueID: -1,
 	})
