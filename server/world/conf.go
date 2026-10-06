@@ -138,10 +138,10 @@ func (conf Config) New() *World {
 	}
 	s := conf.Provider.Settings()
 
-	// Serialise Provider calls (made by both the owner and the chunk load workers)
-	// and, with a single worker, Generator calls, for implementations that aren't
-	// concurrency-safe.
-	conf.Provider = &lockedProvider{p: conf.Provider}
+	// Serialise Provider calls (made by the owners and chunk load workers of every
+	// World sharing it) and, with a single worker, Generator calls, for
+	// implementations that aren't concurrency-safe.
+	conf.Provider = lockProvider(conf.Provider)
 	if conf.ChunkLoadWorkers == 1 {
 		conf.Generator = &lockedGenerator{g: conf.Generator}
 	}

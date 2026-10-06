@@ -1,6 +1,7 @@
 package world
 
 import (
+	"reflect"
 	"sync"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -62,10 +63,24 @@ func (NopProvider) SavePlayerSpawnPosition(uuid.UUID, cube.Pos) error { return n
 func (NopProvider) Close() error                                      { return nil }
 
 // lockedProvider wraps a Provider, serialising all calls for providers that
-// are not safe for concurrent use.
+// are not safe for concurrent use. Every World given the same Provider, such as
+// the dimensions of one server, shares the same mutex.
 type lockedProvider struct {
-	mu sync.Mutex
+	mu *sync.Mutex
 	p  Provider
+}
+
+// providerLocks holds the mutex of each Provider passed to a World.
+var providerLocks sync.Map
+
+// lockProvider wraps p in a lockedProvider sharing a mutex with every other
+// lockedProvider of p.
+func lockProvider(p Provider) *lockedProvider {
+	if !reflect.TypeOf(p).Comparable() {
+		return &lockedProvider{mu: new(sync.Mutex), p: p}
+	}
+	mu, _ := providerLocks.LoadOrStore(p, new(sync.Mutex))
+	return &lockedProvider{mu: mu.(*sync.Mutex), p: p}
 }
 
 func (l *lockedProvider) Settings() *Settings {

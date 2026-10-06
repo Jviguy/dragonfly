@@ -1198,7 +1198,10 @@ func (w *World) save(f func(*Tx, ChunkPos, *Column)) execFunc {
 			f(tx, pos, c)
 		}
 		w.conf.Log.Debug("Updating level.dat values...")
+		// The Settings are shared with the other dimensions, which tick while they are saved.
+		w.set.Lock()
 		w.conf.Provider.SaveSettings(w.set)
+		w.set.Unlock()
 	}
 }
 
